@@ -1,0 +1,159 @@
+---
+title: "Strings and Factors"
+author: "Farizah Rob"
+date: "2022-10-18"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(p8105.datasets)
+```
+
+The most frequent operation involving strings is to search for an exact match. You can use str_detect to find cases where the match exists (often useful in conjunction with filter), and you can use str_replace to replace an instance of a match with something else (often useful in conjunction with mutate). In the following examples we’ll mostly focus on vectors to avoid the complication of data frames, but we’ll see those shortly.
+
+## String vectors
+
+```{r}
+string_vec <- c("my", "name", "is", "jeff")
+
+str_detect(string_vec, "jeff")
+
+str_replace(string_vec, "jeff", "Jeff")
+```
+
+Finding matches at the beginning of the line ^
+
+```{r}
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+
+str_detect(string_vec, "^i think") #starts with "i think"
+
+str_detect(string_vec, "i think$") #ends with "i think"
+```
+
+Designating a list of characters that will count as a match
+
+```{r}
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+
+str_detect(string_vec,"[Bb]ush") #upper or lower-case B/b followed by "ush"
+```
+
+You don’t have to list these; instead, you can provide a range of letters or numbers that count as a match.
+
+```{r}
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+
+str_detect(string_vec, "^[0-9][a-zA-Z]") #starts with a number between 0-9, followed by any letter
+```
+
+The character `.` matches anything.
+
+```{r}
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+
+str_detect(string_vec, "7.11") # the . means there can by anything between (cannot be nothing tho)
+```
+
+Some characters are “special”. These include [ and ], ( and ), and .. If you want to search for these, you have to indicate they’re special using \. Unfortunately, \ is also special, so things get weird.
+
+```{r}
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+
+str_detect(string_vec, "\\[")
+```
+
+## Factors
+
+```{r}
+vec_sex <- factor(c("male", "male", "female", "female"))
+vec_sex
+```
+
+
+```{r}
+as.numeric(vec_sex)
+```
+
+```{r}
+vec_sex = fct_relevel(vec_sex, "male")
+vec_sex
+
+as.numeric(vec_sex)
+```
+
+## NSDUH 
+
+```{r}
+nsduh_url <- "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+table_marj <- 
+  read_html(nsduh_url) %>% 
+  html_table() %>% 
+  first() %>%
+  slice(-1)
+
+table_marj
+```
+
+tidy up the NSDUH data...
+
+```{r}
+data_marj <-
+  table_marj %>%
+  select(-contains("P Value")) %>%
+  pivot_longer(
+    -State,
+    names_to = "age_year", 
+    values_to = "percent") %>%
+  mutate(
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)) %>% 
+  separate(age_year, into = c("age", "year"), sep = "\\(") %>% #2 \\ -> separate AT that character
+  mutate(
+    year = str_replace(year, "\\)", "")
+  ) %>% 
+  filter(
+    !State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West", "District of Columbia")
+  )
+
+#500 row dataset
+```
+
+
+```{r}
+data_marj %>%
+  filter(age == "12-17") %>% 
+  mutate(State = fct_reorder(State, percent)) %>% 
+  ggplot(aes(x = State, y = percent, color = year)) + 
+    geom_point() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
